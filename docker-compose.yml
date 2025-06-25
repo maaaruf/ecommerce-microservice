@@ -1,0 +1,364 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Databases (one per service)
+  postgres-auth:
+    image: postgres:15-alpine
+    container_name: postgres-auth
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+
+  postgres-product:
+    image: postgres:15-alpine
+    container_name: postgres-product
+    environment:
+      POSTGRES_DB: product_db
+      POSTGRES_USER: product_user
+      POSTGRES_PASSWORD: product_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_product_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+
+  postgres-cart:
+    image: postgres:15-alpine
+    container_name: postgres-cart
+    environment:
+      POSTGRES_DB: cart_db
+      POSTGRES_USER: cart_user
+      POSTGRES_PASSWORD: cart_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_cart_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+
+  postgres-order:
+    image: postgres:15-alpine
+    container_name: postgres-order
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: order_user
+      POSTGRES_PASSWORD: order_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_order_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+
+  postgres-payment:
+    image: postgres:15-alpine
+    container_name: postgres-payment
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: payment_password
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_payment_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+
+  postgres-notification:
+    image: postgres:15-alpine
+    container_name: postgres-notification
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: notification_password
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres_notification_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+
+  # MongoDB for Product Catalog
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin_password
+      MONGO_INITDB_DATABASE: product_catalog
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - ecommerce-network
+
+  # Redis for Caching and Pub/Sub
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecommerce-network
+
+  # RabbitMQ for Message Broker
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin_password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - ecommerce-network
+
+  # Keycloak for Identity Management
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgresql
+      KC_DB_URL: jdbc:postgresql://postgres-auth:5432/auth_db
+      KC_DB_USERNAME: auth_user
+      KC_DB_PASSWORD: auth_password
+    ports:
+      - "8080:8080"
+    command: start-dev
+    depends_on:
+      - postgres-auth
+    networks:
+      - ecommerce-network
+
+  # Elasticsearch for Logging
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - ecommerce-network
+
+  # Kibana for Log Visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Logstash for Log Processing
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: logstash
+    ports:
+      - "5044:5044"
+    volumes:
+      - ./infrastructure/logstash/pipeline:/usr/share/logstash/pipeline
+    depends_on:
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: src/Services/Auth/Auth.API/Dockerfile
+    container_name: auth-service
+    ports:
+      - "5001:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres-auth;Port=5432;Database=auth_db;Username=auth_user;Password=auth_password
+      - Jwt__Key=your-super-secret-key-with-at-least-32-characters
+      - Jwt__Issuer=https://localhost:5001
+      - Jwt__Audience=https://localhost:3000
+    depends_on:
+      - postgres-auth
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Product Service
+  product-service:
+    build:
+      context: .
+      dockerfile: src/Services/Product/Product.API/Dockerfile
+    container_name: product-service
+    ports:
+      - "5002:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres-product;Port=5432;Database=product_db;Username=product_user;Password=product_password
+      - MongoDB__ConnectionString=mongodb://admin:admin_password@mongodb:27017/product_catalog?authSource=admin
+    depends_on:
+      - postgres-product
+      - mongodb
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Cart Service
+  cart-service:
+    build:
+      context: .
+      dockerfile: src/Services/Cart/Cart.API/Dockerfile
+    container_name: cart-service
+    ports:
+      - "5003:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres-cart;Port=5432;Database=cart_db;Username=cart_user;Password=cart_password
+      - Redis__ConnectionString=redis:6379
+    depends_on:
+      - postgres-cart
+      - redis
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Order Service
+  order-service:
+    build:
+      context: .
+      dockerfile: src/Services/Order/Order.API/Dockerfile
+    container_name: order-service
+    ports:
+      - "5004:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres-order;Port=5432;Database=order_db;Username=order_user;Password=order_password
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=admin
+      - RabbitMQ__Password=admin_password
+    depends_on:
+      - postgres-order
+      - rabbitmq
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Payment Service
+  payment-service:
+    build:
+      context: .
+      dockerfile: src/Services/Payment/Payment.API/Dockerfile
+    container_name: payment-service
+    ports:
+      - "5005:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres-payment;Port=5432;Database=payment_db;Username=payment_user;Password=payment_password
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=admin
+      - RabbitMQ__Password=admin_password
+    depends_on:
+      - postgres-payment
+      - rabbitmq
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Notification Service
+  notification-service:
+    build:
+      context: .
+      dockerfile: src/Services/Notification/Notification.API/Dockerfile
+    container_name: notification-service
+    ports:
+      - "5006:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres-notification;Port=5432;Database=notification_db;Username=notification_user;Password=notification_password
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=admin
+      - RabbitMQ__Password=admin_password
+    depends_on:
+      - postgres-notification
+      - rabbitmq
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/API.Gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "5000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Jwt__Key=your-super-secret-key-with-at-least-32-characters
+      - Jwt__Issuer=https://localhost:5001
+      - Jwt__Audience=https://localhost:3000
+    depends_on:
+      - auth-service
+      - product-service
+      - cart-service
+      - order-service
+      - payment-service
+      - notification-service
+      - elasticsearch
+    networks:
+      - ecommerce-network
+
+  # Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: src/Web/ClientApp/Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=https://localhost:5000
+    depends_on:
+      - api-gateway
+    networks:
+      - ecommerce-network
+
+volumes:
+  postgres_auth_data:
+  postgres_product_data:
+  postgres_cart_data:
+  postgres_order_data:
+  postgres_payment_data:
+  postgres_notification_data:
+  mongodb_data:
+  redis_data:
+  rabbitmq_data:
+  elasticsearch_data:
+
+networks:
+  ecommerce-network:
+    driver: bridge 
