@@ -1,10 +1,10 @@
-using Auth.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Contracts.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Shared.Contracts.Interfaces;
 
 namespace Auth.Infrastructure.Services;
 

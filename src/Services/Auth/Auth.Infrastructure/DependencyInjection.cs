@@ -1,10 +1,10 @@
-using Auth.Application.Interfaces;
 using Auth.Domain.Interfaces;
 using Auth.Infrastructure.Persistence;
 using Auth.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Contracts.Interfaces;
 
 namespace Auth.Infrastructure;
 
@@ -17,7 +17,7 @@ public static class DependencyInjection
 
         services.AddScoped<AuthDbContext>();
         services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<Shared.Contracts.Interfaces.IJwtService, JwtService>();
 
         return services;
     }

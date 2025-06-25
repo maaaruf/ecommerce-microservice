@@ -1,22 +1,23 @@
-using Auth.Application.Interfaces;
 using Auth.Domain.Entities;
 using Auth.Domain.Interfaces;
 using AutoMapper;
 using Microsoft.Extensions.Configuration;
 using Shared.Contracts.Models;
+using Shared.Contracts.Interfaces;
+using Auth.Application.Interfaces;
 
 namespace Auth.Application.Services;
 
 public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
-    private readonly IJwtService _jwtService;
+    private readonly Shared.Contracts.Interfaces.IJwtService _jwtService;
     private readonly IConfiguration _configuration;
     private readonly IMapper _mapper;
 
     public AuthService(
         IUserRepository userRepository,
-        IJwtService jwtService,
+        Shared.Contracts.Interfaces.IJwtService jwtService,
         IConfiguration configuration,
         IMapper mapper)
     {
