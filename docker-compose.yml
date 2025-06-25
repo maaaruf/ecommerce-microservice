@@ -332,16 +332,31 @@ services:
     networks:
       - ecommerce-network
 
-  # Frontend
-  frontend:
+  # Storefront (Next.js - SEO Friendly)
+  storefront:
     build:
       context: .
-      dockerfile: src/Web/ClientApp/Dockerfile
-    container_name: frontend
+      dockerfile: src/Web/Storefront/Dockerfile
+    container_name: storefront
     ports:
-      - "3000:80"
+      - "3000:3000"
     environment:
-      - REACT_APP_API_URL=https://localhost:5000
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+    depends_on:
+      - api-gateway
+    networks:
+      - ecommerce-network
+
+  # Admin Panel (React - SPA)
+  admin-panel:
+    build:
+      context: .
+      dockerfile: src/Web/AdminPanel/Dockerfile
+    container_name: admin-panel
+    ports:
+      - "3001:3001"
+    environment:
+      - VITE_API_URL=http://localhost:5000
     depends_on:
       - api-gateway
     networks:
