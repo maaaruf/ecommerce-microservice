@@ -1,31 +1,34 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from './store';
+import { getProfile } from './store/slices/authSlice';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
-import { Layout } from './components/Layout';
-import { Products } from './components/Products';
-import { Orders } from './components/Orders';
-import { Users } from './components/Users';
 
 function App() {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch();
+  const { isAuthenticated, loading, user } = useSelector((state: RootState) => state.auth);
+
+  useEffect(() => {
+    // Check if user is authenticated on app load
+    if (isAuthenticated && !user) {
+      dispatch(getProfile());
+    }
+  }, [dispatch, isAuthenticated, user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Login />;
   }
 
-  return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/users" element={<Users />} />
-      </Routes>
-    </Layout>
-  );
+  return <Dashboard />;
 }
 
 export default App; 
