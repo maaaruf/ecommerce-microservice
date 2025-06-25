@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
+  output: 'standalone',
   images: {
     domains: ['localhost', 'your-domain.com'],
   },
@@ -31,7 +29,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:5000/api/:path*',
+        destination: 'http://api-gateway:80/api/:path*',
       },
     ];
   },
