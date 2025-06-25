@@ -1,4 +1,8 @@
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Product.Application.Features.Products.Commands;
+using Product.Application.Features.Products.Queries;
 using Shared.Contracts.Models;
 
 namespace Product.API.Controllers;
@@ -7,45 +11,23 @@ namespace Product.API.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
+    private readonly IMediator _mediator;
     private readonly ILogger<ProductsController> _logger;
 
-    public ProductsController(ILogger<ProductsController> logger)
+    public ProductsController(IMediator mediator, ILogger<ProductsController> logger)
     {
+        _mediator = mediator;
         _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts([FromQuery] bool activeOnly = true)
     {
-        _logger.LogInformation("Getting all products");
+        _logger.LogInformation("Getting products with activeOnly: {ActiveOnly}", activeOnly);
         
-        // TODO: Implement actual product service
-        var products = new List<ProductDto>
-        {
-            new ProductDto
-            {
-                Id = "1",
-                Name = "Sample Product 1",
-                Description = "This is a sample product description",
-                Price = 99.99m,
-                Category = "Electronics",
-                StockQuantity = 100,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            },
-            new ProductDto
-            {
-                Id = "2",
-                Name = "Sample Product 2",
-                Description = "Another sample product description",
-                Price = 149.99m,
-                Category = "Books",
-                StockQuantity = 50,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            }
-        };
-
+        var query = new GetProductsQuery { ActiveOnly = activeOnly };
+        var products = await _mediator.Send(query);
+        
         return Ok(products);
     }
 
@@ -54,95 +36,105 @@ public class ProductsController : ControllerBase
     {
         _logger.LogInformation("Getting product with ID: {ProductId}", id);
         
-        // TODO: Implement actual product service
-        var product = new ProductDto
-        {
-            Id = id,
-            Name = $"Product {id}",
-            Description = $"Description for product {id}",
-            Price = 99.99m,
-            Category = "Electronics",
-            StockQuantity = 100,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow
-        };
-
+        var query = new GetProductByIdQuery { Id = id };
+        var product = await _mediator.Send(query);
+        
         return Ok(product);
     }
 
     [HttpPost]
+    [Authorize]
     public async Task<ActionResult<ProductDto>> CreateProduct([FromBody] CreateProductRequest request)
     {
         _logger.LogInformation("Creating new product: {ProductName}", request.Name);
         
-        // TODO: Implement actual product service
-        var product = new ProductDto
+        var userId = User.FindFirst("sub")?.Value ?? "system";
+        
+        var command = new CreateProductCommand
         {
-            Id = Guid.NewGuid().ToString(),
             Name = request.Name,
             Description = request.Description,
             Price = request.Price,
-            Category = request.Category,
             StockQuantity = request.StockQuantity,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow
+            Category = request.Category,
+            Tags = request.Tags,
+            ImageUrls = request.ImageUrls,
+            CreatedBy = userId
         };
 
+        var product = await _mediator.Send(command);
         return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
     }
 
     [HttpPut("{id}")]
+    [Authorize]
     public async Task<ActionResult<ProductDto>> UpdateProduct(string id, [FromBody] UpdateProductRequest request)
     {
         _logger.LogInformation("Updating product with ID: {ProductId}", id);
         
-        // TODO: Implement actual product service
-        var product = new ProductDto
+        var userId = User.FindFirst("sub")?.Value ?? "system";
+        
+        var command = new UpdateProductCommand
         {
             Id = id,
-            Name = request.Name ?? "Updated Product",
-            Description = request.Description ?? "Updated description",
-            Price = request.Price ?? 99.99m,
-            Category = request.Category ?? "Electronics",
-            StockQuantity = request.StockQuantity ?? 100,
-            IsActive = request.IsActive ?? true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            Name = request.Name,
+            Description = request.Description,
+            Price = request.Price,
+            StockQuantity = request.StockQuantity,
+            Category = request.Category,
+            Tags = request.Tags,
+            ImageUrls = request.ImageUrls,
+            IsActive = request.IsActive,
+            UpdatedBy = userId
         };
 
+        var product = await _mediator.Send(command);
         return Ok(product);
     }
 
     [HttpDelete("{id}")]
+    [Authorize]
     public async Task<ActionResult> DeleteProduct(string id)
     {
         _logger.LogInformation("Deleting product with ID: {ProductId}", id);
         
-        // TODO: Implement actual product service
+        var command = new DeleteProductCommand { Id = id };
+        await _mediator.Send(command);
+        
         return NoContent();
     }
 
     [HttpGet("search")]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> SearchProducts([FromQuery] string? query, [FromQuery] string? category)
+    public async Task<ActionResult<ProductSearchResponse>> SearchProducts([FromQuery] ProductSearchRequest request)
     {
-        _logger.LogInformation("Searching products with query: {Query}, category: {Category}", query, category);
+        _logger.LogInformation("Searching products with query: {Query}, category: {Category}", 
+            request.SearchTerm, request.Category);
         
-        // TODO: Implement actual search service
-        var products = new List<ProductDto>
-        {
-            new ProductDto
-            {
-                Id = "1",
-                Name = "Search Result Product",
-                Description = "This is a search result",
-                Price = 99.99m,
-                Category = category ?? "Electronics",
-                StockQuantity = 100,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            }
-        };
+        var query = new SearchProductsQuery { Request = request };
+        var result = await _mediator.Send(query);
+        
+        return Ok(result);
+    }
 
+    [HttpGet("categories")]
+    public async Task<ActionResult<IEnumerable<string>>> GetCategories()
+    {
+        _logger.LogInformation("Getting product categories");
+        
+        var query = new GetCategoriesQuery();
+        var categories = await _mediator.Send(query);
+        
+        return Ok(categories);
+    }
+
+    [HttpGet("category/{category}")]
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsByCategory(string category)
+    {
+        _logger.LogInformation("Getting products by category: {Category}", category);
+        
+        var query = new GetProductsByCategoryQuery { Category = category };
+        var products = await _mediator.Send(query);
+        
         return Ok(products);
     }
 } 
