@@ -134,7 +134,7 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_DB: postgresql
+      KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres-auth:5432/auth_db
       KC_DB_USERNAME: auth_user
       KC_DB_PASSWORD: auth_password
