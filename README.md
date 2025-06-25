@@ -1,6 +1,6 @@
 # 🛒 E-commerce Microservices Platform
 
-A modern, scalable e-commerce platform built with **.NET 8 microservices**, **React frontend**, and **cloud-native technologies**. This platform demonstrates best practices in microservices architecture, event-driven design, and modern web development.
+A modern, scalable e-commerce platform built with **.NET 8 microservices**, **Next.js storefront**, **React admin panel**, and **cloud-native technologies**. This platform demonstrates best practices in microservices architecture, event-driven design, and modern web development.
 
 ## 🏗️ Architecture Overview
 
@@ -15,12 +15,11 @@ A modern, scalable e-commerce platform built with **.NET 8 microservices**, **Re
 | **Notification Service** | Email, SMS, and webhook notifications | .NET 8, PostgreSQL, SendGrid, Twilio |
 | **API Gateway** | Service aggregation and routing | .NET 8, YARP |
 
-### Frontend
-- **React SPA** with TypeScript
-- **Redux Toolkit** for state management
-- **TailwindCSS** for styling
-- **Axios** for API communication
-- **Role-based access** with JWT
+### Frontend Applications
+| Application | Purpose | Technology Stack |
+|-------------|---------|------------------|
+| **Storefront** | Customer-facing e-commerce store | Next.js 14, TypeScript, TailwindCSS, Redux Toolkit |
+| **Admin Panel** | Administrative interface | React 18, Vite, TypeScript, TailwindCSS, Redux Toolkit |
 
 ### Infrastructure
 - **Database**: PostgreSQL (per service), Redis (caching/pub-sub), MongoDB (catalog)
@@ -54,7 +53,8 @@ docker-compose ps
 ```
 
 **Access Points:**
-- 🌐 **Frontend**: http://localhost:3000
+- 🛍️ **Storefront**: http://localhost:3000
+- 🏢 **Admin Panel**: http://localhost:3001
 - 🔌 **API Gateway**: http://localhost:5000
 - 📊 **Kibana**: http://localhost:5601
 - 🐰 **RabbitMQ Management**: http://localhost:15672
@@ -75,10 +75,16 @@ dotnet run --project src/Services/Payment/Payment.API
 dotnet run --project src/Services/Notification/Notification.API
 dotnet run --project src/Gateway/API.Gateway
 
-# Start frontend
-cd src/Web/ClientApp
+# Start frontend applications
+# Storefront (Next.js)
+cd src/Web/Storefront
 npm install
-npm start
+npm run dev
+
+# Admin Panel (React)
+cd src/Web/AdminPanel
+npm install
+npm run dev
 ```
 
 ## 📁 Project Structure
@@ -99,12 +105,60 @@ npm start
 │   ├── Gateway/                   # API Gateway (YARP)
 │   ├── Shared/                    # Shared libraries
 │   │   └── Shared.Contracts/      # DTOs and events
-│   └── Web/                       # React frontend
-│       └── ClientApp/             # React application
+│   └── Web/                       # Frontend applications
+│       ├── Storefront/            # Next.js customer storefront
+│       │   ├── src/
+│       │   │   ├── app/           # Next.js App Router
+│       │   │   └── components/    # React components
+│       │   └── public/            # Static assets
+│       └── AdminPanel/            # React admin interface
+│           ├── src/
+│           │   ├── components/    # React components
+│           │   └── store/         # Redux store
+│           └── public/            # Static assets
 ├── docs/                          # Documentation
 ├── infrastructure/                # Infrastructure configs
 └── scripts/                       # Build and deployment scripts
 ```
+
+## 🛍️ Frontend Architecture
+
+### Storefront (Next.js) - SEO Friendly
+**Purpose**: Customer-facing e-commerce store with excellent SEO performance
+
+**Key Features:**
+- **Server-Side Rendering (SSR)** for better SEO
+- **Static Generation (SSG)** for product pages
+- **SEO Optimized** with meta tags, Open Graph, and structured data
+- **Fast Loading** with optimized images and code splitting
+- **Mobile Responsive** design
+- **Search Engine Friendly** URLs and content
+
+**Technologies:**
+- Next.js 14 with App Router
+- TypeScript
+- TailwindCSS
+- Redux Toolkit for state management
+- React Hook Form for form handling
+
+### Admin Panel (React) - SPA
+**Purpose**: Administrative interface for store management
+
+**Key Features:**
+- **Single Page Application (SPA)** for rich interactions
+- **Real-time Dashboard** with analytics
+- **Product Management** (CRUD operations)
+- **Order Management** with status updates
+- **User Management** and role-based access
+- **Inventory Management** with stock alerts
+
+**Technologies:**
+- React 18 with Vite
+- TypeScript
+- TailwindCSS
+- Redux Toolkit for state management
+- React Router for navigation
+- Recharts for data visualization
 
 ## 🏛️ Architecture Principles
 
@@ -169,6 +223,10 @@ dotnet test src/Services/Product/Product.Tests
 
 # Run with coverage
 dotnet test --collect:"XPlat Code Coverage"
+
+# Frontend tests
+cd src/Web/Storefront && npm test
+cd src/Web/AdminPanel && npm test
 ```
 
 ## 📚 Documentation
@@ -176,6 +234,7 @@ dotnet test --collect:"XPlat Code Coverage"
 - [🏗️ Architecture Guide](docs/architecture.md) - Detailed architecture and design decisions
 - [🛠️ Development Guide](docs/development.md) - Setup, workflow, and best practices
 - [🚀 Deployment Guide](docs/deployment.md) - Production deployment with Docker and Kubernetes
+- [🛍️ Frontend Guide](src/Web/README.md) - Frontend architecture and development
 - [🤝 Contributing Guide](CONTRIBUTING.md) - Guidelines for contributors
 
 ## 🔄 Development Workflow
@@ -185,7 +244,8 @@ dotnet test --collect:"XPlat Code Coverage"
 2. **Application Layer**: Create use cases and application services
 3. **Infrastructure Layer**: Implement repositories and external integrations
 4. **API Layer**: Add controllers and endpoints
-5. **Tests**: Write unit and integration tests
+5. **Frontend**: Update storefront and/or admin panel
+6. **Tests**: Write unit and integration tests
 
 ### Code Quality
 - Follow **SOLID principles**
@@ -212,7 +272,8 @@ kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/config/
 kubectl apply -f k8s/services/
 kubectl apply -f k8s/gateway/
-kubectl apply -f k8s/frontend/
+kubectl apply -f k8s/storefront/
+kubectl apply -f k8s/admin-panel/
 ```
 
 ## 🤝 Contributing
@@ -232,6 +293,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - [.NET 8](https://dotnet.microsoft.com/) - Modern, fast, and cross-platform framework
+- [Next.js](https://nextjs.org/) - React framework for production
 - [React](https://reactjs.org/) - A JavaScript library for building user interfaces
 - [Docker](https://www.docker.com/) - Containerization platform
 - [YARP](https://microsoft.github.io/reverse-proxy/) - Yet Another Reverse Proxy
