@@ -7,7 +7,7 @@ A modern, scalable e-commerce platform built with **.NET 8 microservices**, **Ne
 ### Backend Services
 | Service | Purpose | Technology Stack |
 |---------|---------|------------------|
-| **Auth Service** | User authentication and authorization | .NET 8, PostgreSQL, Keycloak, JWT |
+| **Auth Service** | User authentication and authorization | .NET 8, PostgreSQL, Keycloak OAuth2/OIDC |
 | **Product Service** | Product catalog and inventory management | .NET 8, PostgreSQL, MongoDB, Elasticsearch |
 | **Cart Service** | Shopping cart management | .NET 8, Redis, PostgreSQL |
 | **Order Service** | Order lifecycle management | .NET 8, PostgreSQL, RabbitMQ |
@@ -48,6 +48,22 @@ cd ecommerce-microservice
 # Start all services
 docker-compose up -d
 
+# Wait for Keycloak to be ready, then configure it
+# Choose your operating system:
+
+# Windows (PowerShell):
+.\scripts\setup-keycloak.ps1
+
+# Windows (Batch file - easiest):
+scripts\setup-keycloak.bat
+
+# Windows (Git Bash/WSL):
+bash scripts/setup-keycloak.sh
+
+# Linux/Mac:
+chmod +x scripts/setup-keycloak.sh
+./scripts/setup-keycloak.sh
+
 # Check service status
 docker-compose ps
 ```
@@ -56,15 +72,19 @@ docker-compose ps
 - 🛍️ **Storefront**: http://localhost:3000
 - 🏢 **Admin Panel**: http://localhost:3001
 - 🔌 **API Gateway**: http://localhost:5000
+- 🔐 **Keycloak Admin**: http://localhost:8080 (admin/admin)
 - 📊 **Kibana**: http://localhost:5601
 - 🐰 **RabbitMQ Management**: http://localhost:15672
-- 🔐 **Keycloak Admin**: http://localhost:8080
 
 ### Option 2: Local Development
 
 ```bash
 # Start infrastructure services only
 docker-compose up -d postgres-auth postgres-product postgres-cart postgres-order postgres-payment postgres-notification mongodb redis rabbitmq keycloak elasticsearch kibana
+
+# Configure Keycloak (choose your OS):
+# Windows: .\scripts\setup-keycloak.ps1
+# Linux/Mac: ./scripts/setup-keycloak.sh
 
 # Start backend services
 dotnet run --project src/Services/Auth/Auth.API
@@ -87,12 +107,39 @@ npm install
 npm run dev
 ```
 
+## 🔐 Authentication with Keycloak
+
+The platform uses **Keycloak** for enterprise-grade OAuth2/OIDC authentication:
+
+### Keycloak Features
+- ✅ **OAuth2/OIDC Compliance**: Standard authentication protocols
+- ✅ **User Management**: Centralized user administration
+- ✅ **Role-Based Access Control**: Fine-grained permissions
+- ✅ **Multi-Factor Authentication**: Built-in 2FA support
+- ✅ **Social Login**: Integration with Google, Facebook, etc.
+- ✅ **Single Sign-On**: Seamless authentication across services
+
+### Test Credentials
+After running the setup script, you can use these test credentials:
+- **Username**: `testuser`
+- **Password**: `Test123!`
+- **Email**: `test@example.com`
+
+### Authentication Flow
+1. **Login**: Redirect to Keycloak login page
+2. **Authorization**: User authenticates with Keycloak
+3. **Callback**: Auth service handles OAuth2 callback
+4. **Token Management**: JWT tokens for API access
+5. **User Sync**: User data synchronized with local database
+
+For detailed setup instructions, see [Keycloak Integration Guide](docs/keycloak-integration.md).
+
 ## 📁 Project Structure
 
 ```
 ├── src/
 │   ├── Services/                    # Microservices
-│   │   ├── Auth/                   # Authentication service
+│   │   ├── Auth/                   # Authentication service (Keycloak integration)
 │   │   │   ├── Auth.API/          # Web API layer
 │   │   │   ├── Auth.Application/  # Business logic layer
 │   │   │   ├── Auth.Domain/       # Domain entities
@@ -118,7 +165,11 @@ npm run dev
 │           └── public/            # Static assets
 ├── docs/                          # Documentation
 ├── infrastructure/                # Infrastructure configs
-└── scripts/                       # Build and deployment scripts
+├── scripts/                       # Build and deployment scripts
+│   ├── setup-keycloak.sh         # Keycloak configuration (Linux/Mac)
+│   ├── setup-keycloak.ps1        # Keycloak configuration (Windows PowerShell)
+│   └── setup-keycloak.bat        # Keycloak configuration (Windows Batch)
+└── docker-compose.yml            # Docker services configuration
 ```
 
 ## 🛍️ Frontend Architecture
@@ -133,6 +184,7 @@ npm run dev
 - **Fast Loading** with optimized images and code splitting
 - **Mobile Responsive** design
 - **Search Engine Friendly** URLs and content
+- **OAuth2 Integration** with Keycloak for authentication
 
 **Technologies:**
 - Next.js 14 with App Router
@@ -151,6 +203,7 @@ npm run dev
 - **Order Management** with status updates
 - **User Management** and role-based access
 - **Inventory Management** with stock alerts
+- **OAuth2 Integration** with Keycloak for authentication
 
 **Technologies:**
 - React 18 with Vite
@@ -182,10 +235,10 @@ npm run dev
 ## 🔧 Key Features
 
 ### Authentication & Authorization
-- JWT-based authentication
-- Role-based access control (RBAC)
-- Integration with Keycloak
-- Token refresh mechanism
+- **Keycloak OAuth2/OIDC**: Enterprise-grade identity management
+- **Role-based access control (RBAC)**: Fine-grained permissions
+- **Token-based authentication**: JWT tokens for API access
+- **Single Sign-On (SSO)**: Seamless authentication across services
 
 ### API Gateway
 - Request routing and aggregation
@@ -210,6 +263,7 @@ npm run dev
 - Input validation and sanitization
 - SQL injection prevention
 - XSS protection
+- OAuth2/OIDC security standards
 
 ## 🧪 Testing
 
@@ -234,6 +288,7 @@ cd src/Web/AdminPanel && npm test
 - [🏗️ Architecture Guide](docs/architecture.md) - Detailed architecture and design decisions
 - [🛠️ Development Guide](docs/development.md) - Setup, workflow, and best practices
 - [🚀 Deployment Guide](docs/deployment.md) - Production deployment with Docker and Kubernetes
+- [🔐 Keycloak Integration Guide](docs/keycloak-integration.md) - Keycloak setup and usage
 - [🛍️ Frontend Guide](src/Web/README.md) - Frontend architecture and development
 - [🤝 Contributing Guide](CONTRIBUTING.md) - Guidelines for contributors
 
@@ -260,6 +315,10 @@ cd src/Web/AdminPanel && npm test
 ```bash
 # Build and run with Docker Compose
 docker-compose up -d
+
+# Configure Keycloak (choose your OS):
+# Windows: .\scripts\setup-keycloak.ps1
+# Linux/Mac: ./scripts/setup-keycloak.sh
 
 # Production deployment
 docker-compose -f docker-compose.prod.yml up -d

@@ -3,7 +3,6 @@ using Auth.Domain.Interfaces;
 using AutoMapper;
 using Microsoft.Extensions.Configuration;
 using Shared.Contracts.Models;
-using Shared.Contracts.Interfaces;
 using Auth.Application.Interfaces;
 
 namespace Auth.Application.Services;
@@ -11,109 +10,116 @@ namespace Auth.Application.Services;
 public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
-    private readonly Shared.Contracts.Interfaces.IJwtService _jwtService;
+    private readonly IKeycloakService _keycloakService;
     private readonly IConfiguration _configuration;
     private readonly IMapper _mapper;
+    private readonly IEmailService _emailService;
 
     public AuthService(
         IUserRepository userRepository,
-        Shared.Contracts.Interfaces.IJwtService jwtService,
+        IKeycloakService keycloakService,
         IConfiguration configuration,
-        IMapper mapper)
+        IMapper mapper,
+        IEmailService emailService)
     {
         _userRepository = userRepository;
-        _jwtService = jwtService;
+        _keycloakService = keycloakService;
         _configuration = configuration;
         _mapper = mapper;
+        _emailService = emailService;
     }
 
-    public async Task<UserDto> RegisterUserAsync(CreateUserRequest request)
+    public async Task<string> GetAuthorizationUrlAsync(string redirectUri, string state)
     {
-        // Check if user already exists
-        var existingUser = await _userRepository.GetByEmailAsync(request.Email);
-        if (existingUser != null)
-        {
-            throw new InvalidOperationException("User with this email already exists");
-        }
-
-        // Create new user
-        var user = new User
-        {
-            Id = Guid.NewGuid().ToString(),
-            Email = request.Email,
-            Username = request.Username,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            PhoneNumber = request.PhoneNumber,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        // Hash password (in real implementation, use proper password hashing)
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-        await _userRepository.AddAsync(user);
-
-        return _mapper.Map<UserDto>(user);
+        return await _keycloakService.GetAuthorizationUrlAsync(redirectUri, state);
     }
 
-    public async Task<LoginResponse> LoginAsync(string username, string password)
+    public async Task<LoginResponse> HandleCallbackAsync(string code, string state, string redirectUri)
     {
-        var user = await _userRepository.GetByUsernameAsync(username);
-        if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        // Exchange authorization code for tokens
+        var tokenResponse = await _keycloakService.ExchangeCodeForTokenAsync(code, redirectUri);
+        
+        // Get user information from Keycloak
+        var userInfo = await _keycloakService.GetUserInfoAsync(tokenResponse.AccessToken);
+        
+        // Check if user exists in our database, if not create them
+        var user = await _userRepository.GetByEmailAsync(userInfo.Email);
+        if (user == null)
         {
-            throw new InvalidOperationException("Invalid username or password");
-        }
+            // Create new user from Keycloak user info
+            user = new User
+            {
+                Id = userInfo.Sub,
+                Email = userInfo.Email,
+                Username = userInfo.Username,
+                FirstName = userInfo.GivenName,
+                LastName = userInfo.FamilyName,
+                IsActive = true,
+                IsEmailVerified = userInfo.EmailVerified,
+                Roles = userInfo.Roles.Any() ? userInfo.Roles : new List<string> { "User" },
+                CreatedAt = DateTime.UtcNow
+            };
 
-        if (!user.IsActive)
+            await _userRepository.AddAsync(user);
+        }
+        else
         {
-            throw new InvalidOperationException("User account is deactivated");
-        }
+            // Update existing user with latest info from Keycloak
+            user.FirstName = userInfo.GivenName;
+            user.LastName = userInfo.FamilyName;
+            user.Username = userInfo.Username;
+            user.IsEmailVerified = userInfo.EmailVerified;
+            user.Roles = userInfo.Roles.Any() ? userInfo.Roles : user.Roles;
+            user.UpdatedAt = DateTime.UtcNow;
+            user.UpdatedBy = userInfo.Sub;
 
-        // Update last login
-        user.LastLoginAt = DateTime.UtcNow;
-        await _userRepository.UpdateAsync(user);
+            await _userRepository.UpdateAsync(user);
+        }
 
         var userDto = _mapper.Map<UserDto>(user);
-        var accessToken = _jwtService.GenerateAccessToken(userDto);
-        var refreshToken = _jwtService.GenerateRefreshToken();
 
         return new LoginResponse
         {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(60),
-            User = userDto
+            AccessToken = tokenResponse.AccessToken,
+            RefreshToken = tokenResponse.RefreshToken,
+            ExpiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn),
+            User = userDto,
+            RequirePasswordChange = user.RequirePasswordChange
         };
     }
 
     public async Task<LoginResponse> RefreshTokenAsync(string refreshToken)
     {
-        // In a real implementation, validate the refresh token against stored tokens
-        // For now, we'll generate a new token
-        var userId = _jwtService.GetUserIdFromToken(refreshToken);
-        if (string.IsNullOrEmpty(userId))
+        var tokenResponse = await _keycloakService.RefreshTokenAsync(refreshToken);
+        
+        // Get updated user information
+        var userInfo = await _keycloakService.GetUserInfoAsync(tokenResponse.AccessToken);
+        var user = await _userRepository.GetByIdAsync(userInfo.Sub);
+        
+        if (user == null)
         {
-            throw new InvalidOperationException("Invalid refresh token");
-        }
-
-        var user = await _userRepository.GetByIdAsync(userId);
-        if (user == null || !user.IsActive)
-        {
-            throw new InvalidOperationException("User not found or inactive");
+            throw new InvalidOperationException("User not found");
         }
 
         var userDto = _mapper.Map<UserDto>(user);
-        var accessToken = _jwtService.GenerateAccessToken(userDto);
-        var newRefreshToken = _jwtService.GenerateRefreshToken();
 
         return new LoginResponse
         {
-            AccessToken = accessToken,
-            RefreshToken = newRefreshToken,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(60),
+            AccessToken = tokenResponse.AccessToken,
+            RefreshToken = tokenResponse.RefreshToken,
+            ExpiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn),
             User = userDto
         };
+    }
+
+    public async Task<bool> ValidateTokenAsync(string accessToken)
+    {
+        return await _keycloakService.ValidateTokenAsync(accessToken);
+    }
+
+    public async Task<UserInfo> GetUserInfoAsync(string accessToken)
+    {
+        return await _keycloakService.GetUserInfoAsync(accessToken);
     }
 
     public async Task<UserDto> GetUserByIdAsync(string userId)
@@ -127,15 +133,92 @@ public class AuthService : IAuthService
         return _mapper.Map<UserDto>(user);
     }
 
-    public async Task LogoutAsync(string userId)
+    public async Task<UserDto> UpdateProfileAsync(string userId, UpdateProfileRequest request)
     {
-        // In a real implementation, invalidate the refresh token
-        // For now, we'll just log the logout
         var user = await _userRepository.GetByIdAsync(userId);
-        if (user != null)
+        if (user == null)
         {
-            // Update last activity or log logout event
-            await _userRepository.UpdateAsync(user);
+            throw new InvalidOperationException("User not found");
         }
+
+        user.FirstName = request.FirstName;
+        user.LastName = request.LastName;
+        user.PhoneNumber = request.PhoneNumber;
+        user.ProfilePictureUrl = request.ProfilePictureUrl;
+        user.TimeZone = request.TimeZone;
+        user.Language = request.Language;
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = userId;
+
+        await _userRepository.UpdateAsync(user);
+
+        return _mapper.Map<UserDto>(user);
+    }
+
+    public async Task<AuthResult> LogoutAsync(string refreshToken)
+    {
+        var success = await _keycloakService.RevokeTokenAsync(refreshToken);
+        
+        return new AuthResult
+        {
+            Success = success,
+            Message = success ? "Logged out successfully" : "Failed to logout"
+        };
+    }
+
+    public async Task<string> GetLogoutUrlAsync(string redirectUri, string idToken)
+    {
+        return await _keycloakService.GetLogoutUrlAsync(redirectUri, idToken);
+    }
+
+    // Legacy methods for backward compatibility - these will be removed in future versions
+    public async Task<UserDto> RegisterUserAsync(CreateUserRequest request)
+    {
+        throw new NotImplementedException("User registration is now handled through Keycloak. Please use OAuth2/OIDC flow.");
+    }
+
+    public async Task<LoginResponse> LoginAsync(string username, string password, string? twoFactorCode = null)
+    {
+        throw new NotImplementedException("Direct login is not supported. Please use OAuth2/OIDC flow with Keycloak.");
+    }
+
+    public async Task<AuthResult> ForgotPasswordAsync(string email)
+    {
+        throw new NotImplementedException("Password reset is now handled through Keycloak.");
+    }
+
+    public async Task<AuthResult> ResetPasswordAsync(string token, string newPassword)
+    {
+        throw new NotImplementedException("Password reset is now handled through Keycloak.");
+    }
+
+    public async Task<AuthResult> ChangePasswordAsync(string userId, string currentPassword, string newPassword)
+    {
+        throw new NotImplementedException("Password change is now handled through Keycloak.");
+    }
+
+    public async Task<AuthResult> VerifyEmailAsync(string token)
+    {
+        throw new NotImplementedException("Email verification is now handled through Keycloak.");
+    }
+
+    public async Task<AuthResult> ResendEmailVerificationAsync(string email)
+    {
+        throw new NotImplementedException("Email verification is now handled through Keycloak.");
+    }
+
+    public async Task<TwoFactorSetupResponse> SetupTwoFactorAsync(string userId)
+    {
+        throw new NotImplementedException("Two-factor authentication is now handled through Keycloak.");
+    }
+
+    public async Task<AuthResult> EnableTwoFactorAsync(string userId, string secret, string code)
+    {
+        throw new NotImplementedException("Two-factor authentication is now handled through Keycloak.");
+    }
+
+    public async Task<AuthResult> DisableTwoFactorAsync(string userId, string code)
+    {
+        throw new NotImplementedException("Two-factor authentication is now handled through Keycloak.");
     }
 } 

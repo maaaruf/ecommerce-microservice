@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../store';
+import { AppDispatch, RootState } from '../store';
 import { login, clearError } from '../store/slices/authSlice';
 import { Eye, EyeOff } from 'lucide-react';
 
 export function Login() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { loading, error } = useSelector((state: RootState) => state.auth);
   
   const [username, setUsername] = useState('');
@@ -99,5 +99,4 @@ export function Login() {
       </div>
     </div>
   );
-} 
 } 

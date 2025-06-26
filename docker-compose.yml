@@ -198,11 +198,20 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres-auth;Port=5432;Database=auth_db;Username=auth_user;Password=auth_password
-      - Jwt__Key=your-super-secret-key-with-at-least-32-characters
-      - Jwt__Issuer=https://localhost:5001
-      - Jwt__Audience=https://localhost:3000
+      - Keycloak__Authority=http://keycloak:8080/realms/ecommerce
+      - Keycloak__ClientId=auth-service
+      - Keycloak__ClientSecret=your-client-secret
+      - Keycloak__RequireHttpsMetadata=false
+      - Keycloak__ValidateIssuer=true
+      - Keycloak__ValidateAudience=true
+      - Keycloak__ValidateLifetime=true
+      - Keycloak__ValidateIssuerSigningKey=true
+      - Keycloak__TokenValidationParameters__ValidIssuer=http://keycloak:8080/realms/ecommerce
+      - Keycloak__TokenValidationParameters__ValidAudience=auth-service
+      - Keycloak__TokenValidationParameters__ClockSkew=00:05:00
     depends_on:
       - postgres-auth
+      - keycloak
       - elasticsearch
     networks:
       - ecommerce-network

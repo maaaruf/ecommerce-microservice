@@ -42,9 +42,9 @@ class AuthService {
 
     // Store tokens
     if (typeof window !== 'undefined') {
-      localStorage.setItem('accessToken', response.AccessToken);
-      localStorage.setItem('refreshToken', response.RefreshToken);
-      localStorage.setItem('user', JSON.stringify(response.User));
+      localStorage.setItem('accessToken', response.accessToken);
+      localStorage.setItem('refreshToken', response.refreshToken);
+      localStorage.setItem('user', JSON.stringify(response.user));
     }
 
     return response;
@@ -74,8 +74,8 @@ class AuthService {
 
     // Update stored tokens
     if (typeof window !== 'undefined') {
-      localStorage.setItem('accessToken', response.AccessToken);
-      localStorage.setItem('refreshToken', response.RefreshToken);
+      localStorage.setItem('accessToken', response.accessToken);
+      localStorage.setItem('refreshToken', response.refreshToken);
     }
 
     return response;

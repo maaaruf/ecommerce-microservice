@@ -2,6 +2,7 @@ using Auth.Application;
 using Auth.Infrastructure;
 using Auth.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -27,22 +28,28 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Configure JWT Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+// Configure Keycloak Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.Authority = builder.Configuration["Keycloak:Authority"];
+    options.Audience = builder.Configuration["Keycloak:ClientId"];
+    options.RequireHttpsMetadata = bool.Parse(builder.Configuration["Keycloak:RequireHttpsMetadata"] ?? "false");
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured")))
-        };
-    });
+        ValidateIssuer = bool.Parse(builder.Configuration["Keycloak:ValidateIssuer"] ?? "true"),
+        ValidateAudience = bool.Parse(builder.Configuration["Keycloak:ValidateAudience"] ?? "true"),
+        ValidateLifetime = bool.Parse(builder.Configuration["Keycloak:ValidateLifetime"] ?? "true"),
+        ValidateIssuerSigningKey = bool.Parse(builder.Configuration["Keycloak:ValidateIssuerSigningKey"] ?? "true"),
+        ValidIssuer = builder.Configuration["Keycloak:TokenValidationParameters:ValidIssuer"],
+        ValidAudience = builder.Configuration["Keycloak:TokenValidationParameters:ValidAudience"],
+        ClockSkew = TimeSpan.Parse(builder.Configuration["Keycloak:TokenValidationParameters:ClockSkew"] ?? "00:05:00")
+    };
+});
 
 builder.Services.AddAuthorization();
 
@@ -53,6 +60,9 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 // Register Application Services
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Configure HttpClient for Keycloak
+builder.Services.AddHttpClient();
 
 // Configure CORS
 builder.Services.AddCors(options =>

@@ -1,12 +1,12 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from './store';
+import { AppDispatch, RootState } from './store';
 import { getProfile } from './store/slices/authSlice';
 import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 
 function App() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { isAuthenticated, loading, user } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {

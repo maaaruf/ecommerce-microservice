@@ -4,7 +4,7 @@ using Auth.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Shared.Contracts.Interfaces;
+using Auth.Application.Interfaces;
 
 namespace Auth.Infrastructure;
 
@@ -17,7 +17,8 @@ public static class DependencyInjection
 
         services.AddScoped<AuthDbContext>();
         services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<Shared.Contracts.Interfaces.IJwtService, JwtService>();
+        services.AddScoped<IKeycloakService, KeycloakService>();
+        services.AddScoped<IEmailService, EmailService>();
 
         return services;
     }

@@ -1,4 +1,5 @@
 using MediatR;
+using Product.Application.Interfaces;
 using Shared.Contracts.Models;
 
 namespace Product.Application.Features.Products.Queries;

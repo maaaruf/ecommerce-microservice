@@ -56,7 +56,7 @@ public class ProductService : IProductService
 
     public async Task<ProductDto> CreateProductAsync(CreateProductRequest request, string createdBy)
     {
-        var product = new Product
+        var product = new Product.Domain.Entities.Product
         {
             Id = Guid.NewGuid().ToString(),
             Name = request.Name,
